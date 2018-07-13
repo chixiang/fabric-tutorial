@@ -19,3 +19,5 @@ $ curl -sSL http://bit.ly/2ysbOFE | bash -s 1.2.0
 执行完成后，`$HOME/go/fabric-samples/bin` 目录内容如下：
 
 ![](https://ws2.sinaimg.cn/large/006tNc79gy1ft8fruw3qnj30jy02bt94.jpg)
+
+这里最好把这个 `bin` 目录加入到 `PATH` 中，后边使用会比较方便
