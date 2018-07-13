@@ -12,6 +12,8 @@
 
 ### cURL
 
+### Git
+
 ### Docker and Docker Compose
 
 - MacOSX, *nix, or Windows 10: Docker Docker version 17.06.2-ce or greater is required.
