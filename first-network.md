@@ -86,6 +86,12 @@ $ configtxgen -profile TwoOrgsChannel -outputAnchorPeersUpdate ./channel-artifac
 $ docker-compose -f docker-compose-cli.yaml up -d
 ```
 
+如果你想使用 CouchDB 保存数据，则这样启动：
+
+```bash
+$ docker-compose -f docker-compose-cli.yaml -f docker-compose-couch.yaml up -d
+```
+
 ### 环境变量
 
 接下来我们需要进入 docker 容器中去执行命令，通过设置环境变量来指定我们需要进入的机器：
@@ -161,3 +167,87 @@ peer chaincode invoke -o orderer.example.com:7050 --tls true --cafile /opt/gopat
 ```
 
 调用成功后再次执行查询，`a` 将变成 90
+
+## 使用 CouchDB
+
+### 启动网络
+
+上面的启动网络操作，如果你想使用 CouchDB 保存数据，则这样启动：
+
+```bash
+$ docker-compose -f docker-compose-cli.yaml -f docker-compose-couch.yaml up -d
+```
+
+### 安装和实例化 chaincode
+
+```bash
+peer chaincode install -n marbles -v 1.0 -p github.com/chaincode/marbles02/go
+peer chaincode instantiate -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n marbles -v 1.0 -c '{"Args":["init"]}' -P "OR ('Org0MSP.peer','Org1MSP.peer')"
+```
+
+### 初始化数据
+
+```bash
+peer chaincode invoke -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n marbles -c '{"Args":["initMarble","marble1","blue","35","tom"]}'
+peer chaincode invoke -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n marbles -c '{"Args":["initMarble","marble2","red","50","tom"]}'
+peer chaincode invoke -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n marbles -c '{"Args":["initMarble","marble3","blue","70","tom"]}'
+```
+
+### 调用
+
+```bash
+peer chaincode invoke -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n marbles -c '{"Args":["transferMarble","marble2","jerry"]}'
+peer chaincode invoke -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n marbles -c '{"Args":["transferMarblesBasedOnColor","blue","jerry"]}'
+peer chaincode invoke -o orderer.example.com:7050 --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C $CHANNEL_NAME -n marbles -c '{"Args":["delete","marble1"]}'
+```
+
+可以通过浏览器访问 `http://localhost:5984/_utils` 来查看 CouchDB
+
+### 查询
+
+```bash
+peer chaincode query -C $CHANNEL_NAME -n marbles -c '{"Args":["readMarble","marble2"]}'
+```
+
+### 查询历史
+
+```bash
+peer chaincode query -C $CHANNEL_NAME -n marbles -c '{"Args":["getHistoryForMarble","marble1"]}'
+```
+
+### 按 Owner 查询
+
+```bash
+peer chaincode query -C $CHANNEL_NAME -n marbles -c '{"Args":["queryMarblesByOwner","jerry"]}'
+```
+
+
+
+## 其他说明
+
+### 查看日志
+
+```bash
+$ docker logs -f cli
+```
+
+### 查看 chaincode 日志
+
+```bash
+$ docker logs dev-peer0.org2.example.com-mycc-1.0
+04:30:45.947 [BCCSP_FACTORY] DEBU : Initialize BCCSP [SW]
+ex02 Init
+Aval = 100, Bval = 200
+
+$ docker logs dev-peer0.org1.example.com-mycc-1.0
+04:31:10.569 [BCCSP_FACTORY] DEBU : Initialize BCCSP [SW]
+ex02 Invoke
+Query Response:{"Name":"a","Amount":"100"}
+ex02 Invoke
+Aval = 90, Bval = 210
+
+$ docker logs dev-peer1.org2.example.com-mycc-1.0
+04:31:30.420 [BCCSP_FACTORY] DEBU : Initialize BCCSP [SW]
+ex02 Invoke
+Query Response:{"Name":"a","Amount":"90"}
+```
