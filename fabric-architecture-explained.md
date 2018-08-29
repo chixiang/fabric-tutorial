@@ -106,3 +106,26 @@ KVS 操作原型如下：
 
  * **broadcast(blob)**：广播，客户端调用这个操作在通道内广播任意信息`blob`。在拜占庭容错问题中向一个服务发送一个请求的时候也被称为`request(blob)`。
  * **deliver(seqno, prevhash, blob)**：传递，排序服务在对等节点调用这个操作传递包含指定的非负整数序列号（seqno）和前一个传递的 blob（prevhash）的哈希值的信息blob。换种说法，它是排序服务的一个输出事件。`deliver()`在发布-订阅系统中有时也被称为`notify()`，在拜占庭容错系统中被称为`commit()`。
+
+**账本和区块编队：** 账本包括排序服务输出的全部数据。简言之，它是一个`deliver(seqno, prevhash, blob)`的序列，依据的是计算前面提到的`prevhash`来构建一条哈希链。
+
+大多数时候，为了提高效率，排序服务会将交易`（blob）`打包，在一个`deliver`事件中输出多个区块，而不是每一笔交易单独输出。在这种情况下，排序服务必须对每一个区块里的交易强加一个确定的顺序。一个区块里的交易数量可以由一个排序服务的具体实现动态选择。
+
+接下来，为了表达简便，我们基于每次`deliver`一个`blob`的假设定义了排序服务属性并且解释了交易背书的工作流。这个概念可以轻松扩展到区块，基于上面说的一个`block`里面的`blob`有确定的顺序，我们假定一个`block`的`deliver`事件对应一个`block`里的每一个`blob`的一系列`deliver`事件。
+
+**排序服务属性**
+
+排序服务（或原子广播通道）的保证规定了广播消息会发生什么和完成传递的消息之间存在什么关系。这些保证如下：
+
+1. **安全性（一致性保证）：** 只要对等点连接上通道足够长的时间（他们可以断开连接或者宕机，但是会重启和重连），他们会看到唯一一串完成传递的`(seqno, prevhash, blob)`的信息。这意味着输出（`deliver()`事件）在所有对等点以相同的顺序发生，并且输出（`output`）依据序号为同一个序号携带相同的内容（`blob`和`prehash`）。注意这仅仅是一个逻辑顺序，而且一个对等点上的`delever(seqno, prevhash, blob)`不要求与在其他对等点上输出相同消息的`delever(seqno, prevhash, blob)`实时发生。换句话说，给定一个特定的`seqno`，没有两个对等点传递不同的`prevhash`或`blob`值。此外，除非某个客户端（对等点）实际调用了`broadcast(blob)`，没有`blob`值会被传送，每个广播过的`blob`只传递一次。此外，`deliver()`事件包含了前一个`deliver()`事件的加密哈希值（`prevhash`）。当排序服务实施原子广播保证时，`prevhash`是序列号为`seqno-1`的`deliver()`事件的哈希值。这就在不同的`deliver()`事件之间建立了一个哈希链，用于校验排序服务输出的正确性。第一个`deliver()`事件是一个特殊情况，`prevhash`有一个默认值。
+2. **活跃度（Liveness）：传递保证（delivery guarantee）** 排序服务的活跃度保证是排序服务的实现指定的。精确的保证要依赖网络和节点故障模型。
+
+总的来说，排序服务保证如下属性：
+
+* **一致（Agreement）：** 正常对等节点的任意两个事件，`deliver(seqno, prevhash0, blob0)`和`deliver(seqno, prevhash1, blob1)`，如果有相同的`seqno`，则有`prevhash0==prevhash1`，`blob0==blob1`；
+* **哈希链的完整性（Hashchain integrity）：** 正常对等节点的任意两个事件：`deliver(seqno-1, prevhash0, blob0)`和`deliver(seqno, prevhash, blob)`, `prevhash = HASH(seqno-1||prevhash0||blob0)`;
+* **不跳跃（No skipping）：** 如果一个排序服务给一个正常节点`p`输出`deliver(seqno, prevhash, blob)`，如果`seqno>0`，则`p`一定已经传递了`deliver(seqno-1, prevhash0, blob0)`事件；
+* **不创建（No creation）：** 一个正常节点的任意`deliver(seqno, prevhash, blob)`事件，前面一定有一个对等节点发送了`broadcast(blob)`事件；
+* **不重复（No duplication，可选的）：** 对任意的两个事件`broadcast(blob)`和`broadcast(blob')`，当正常对等节点交付了两个事件，`deliver(seqno0, prevhash0, blob)`和`deliver(seqno1, prevhash1, blob')`，如果`blob==blob'`，则有`seqno0==seqno1`和`prevhash0==prevhash1`成立；
+* **活跃度（Liveness）:** 如果一个正常对等节点产生了`broadcast(blob)`事件，则每个正常对等节点“最终”都会发出一个`deliver(*, *, blob)`事件，其中`*`代表任意值。
+
