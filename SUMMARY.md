@@ -11,3 +11,5 @@
 * [创建第一个网络](first-network.md)
 
 * [区块链供应链金融](supply-chain.md)
+
+* [医药流通行业实例](example.md)
